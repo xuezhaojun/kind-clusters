@@ -1,0 +1,66 @@
+name: 'Kind Clusters'
+description: 'Create multiple kind (Kubernetes IN Docker) clusters'
+inputs:
+  clusters:
+    description: 'A comma-separated list of clusters, the upperbound is 3 clusters'
+    required: true
+    default: 'hub, spoke1, spoke2'
+  kind_version:
+    description: 'The version of kind to install'
+    required: false
+    default: 'v0.22.0'
+  kubectl_version:
+    description: 'The version of kubectl to install'
+    required: false
+    default: 'v1.29.3'
+  images:
+    description: 'A comma-separated list of images to load into the clusters'
+    required: false
+    default: 'nginx:latest,nginx:alpine'
+runs:
+  using: "composite"
+  steps:
+    - name: Install kind
+      shell: bash
+      run: |
+        echo "Installing kind version: ${{ inputs.kind_version }}"
+        curl -Lo ./kind https://kind.sigs.k8s.io/dl/${{ inputs.kind_version }}/kind-linux-amd64
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/kind
+        kind version
+    - name: Install kubectl
+      shell: bash
+      run: |
+        echo "Installing kubectl version: ${{ inputs.kubectl_version }}"
+        curl -LO "https://dl.k8s.io/release/${{ inputs.kubectl_version }}/bin/linux/amd64/kubectl"
+        chmod +x ./kubectl
+        sudo mv ./kubectl /usr/local/bin/kubectl
+        kubectl version --client
+    - name: Create kind clusters
+      shell: bash
+      env:
+        CLUSTERS: ${{ inputs.clusters }}
+      run: |
+        # validate the number of clusters
+        if [ $(echo $CLUSTERS | tr "," "\n" | wc -l) -gt 3 ]; then
+          echo "The number of clusters exceeds the upperbound of 3"
+          exit 1
+        fi
+        echo "Creating kind clusters: $CLUSTERS"
+        for cluster in $(echo $CLUSTERS | tr "," "\n"); do
+          echo "Creating kind cluster: $cluster"
+          kind create cluster --name $cluster
+        done
+    - name: Load images into kind clusters
+      shell: bash
+      env:
+        CLUSTERS: ${{ inputs.clusters }}
+        IMAGES: ${{ inputs.images }}
+      run: |
+        echo "Loading images into kind clusters: $CLUSTERS"
+        for cluster in $(echo $CLUSTERS | tr "," "\n"); do
+          for image in $(echo $IMAGES | tr "," "\n"); do
+            echo "Loading image: $image into cluster: $cluster"
+            kind load docker-image $image --name $cluster
+          done
+        done
