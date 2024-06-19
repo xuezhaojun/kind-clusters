@@ -1,0 +1,26 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - releases/*
+
+jobs:
+  hello_world_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download nginx:latest image
+        run: docker pull nginx:latest
+      - uses: ./
+        name: Create kind clusters
+        with:
+          clusters: 'hub1,hub2,spoke'
+          images: 'nginx:latest'
+      - name: Get clusters status
+        run: |
+          kubectl cluster-info --context kind-hub1
+          kubectl cluster-info --context kind-hub2
+          kubectl cluster-info --context kind-spoke
